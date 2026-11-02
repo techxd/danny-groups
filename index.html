@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏐 排球分組小工具 - Danny 排球團</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            volleyball: {
+              orange: '#FF6B35',
+              navy: '#004E89',
+              yellow: '#F7C59F',
+              light: '#EFEFD0',
+              accent: '#1A659E',
+              dark: '#111827'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes bounce-gentle {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+    .animate-gentle {
+      animation: bounce-gentle 2s infinite ease-in-out;
+    }
+    .team-badge-1 { background: linear-gradient(135deg, #EF4444, #F87171); color: white; }
+    .team-badge-2 { background: linear-gradient(135deg, #3B82F6, #60A5FA); color: white; }
+    .team-badge-3 { background: linear-gradient(135deg, #10B981, #34D399); color: white; }
+    .team-badge-4 { background: linear-gradient(135deg, #F59E0B, #FBBF24); color: white; }
+    .team-badge-5 { background: linear-gradient(135deg, #8B5CF6, #A78BFA); color: white; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-orange-500 selection:text-white">
+
+  <!-- 頂部導覽列 -->
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-400 flex items-center justify-center text-white shadow-lg shadow-orange-500/20 text-xl font-bold">
+          🏐
+        </div>
+        <div>
+          <h1 class="text-lg md:text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            Danny 排球分組小工具
+            <span class="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">五組平均</span>
+          </h1>
+          <p class="text-xs text-slate-400">芳和實中（二）17:45-20:45 季打與臨打均衡分組</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 text-xs">
+        <a href="https://docs.google.com/spreadsheets/d/1YJeeKy7ZwQiUU4n5UByINY3sK2ZPsaA2dL2nnv6c8FU/edit?usp=drivesdk" 
+           target="_blank" 
+           class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-table"></i> Google Sheet
+        </a>
+        <button id="refreshBtn" onclick="fetchSheetData()" class="px-2.5 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-medium transition flex items-center gap-1.5 shadow">
+          <i class="fa-solid fa-arrows-rotate" id="refreshIcon"></i> 更新資料
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主要內容區 -->
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6 space-y-6">
+
+    <!-- 狀態與日期選擇卡片 -->
+    <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-4 md:p-5 shadow-xl backdrop-blur">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        
+        <!-- 左側：日期切換與就緒狀態 -->
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold text-slate-300 flex items-center gap-1.5">
+              <i class="fa-regular fa-calendar-check text-orange-400"></i> 場次日期：
+            </span>
+            <select id="dateSelect" onchange="onDateChange()" class="bg-slate-900 border border-slate-600 rounded-xl px-3 py-2 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-orange-500">
+              <option value="">載入中...</option>
+            </select>
+          </div>
+          <span id="nearestBadge" class="hidden text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full flex items-center gap-1 font-medium">
+            <i class="fa-solid fa-bullseye"></i> 最接近日期
+          </span>
+        </div>
+
+        <!-- 右側：統計資訊 -->
+        <div class="flex flex-wrap items-center gap-3 text-xs md:text-sm">
+          <div class="bg-slate-900/80 border border-slate-700 px-3 py-1.5 rounded-xl flex items-center gap-2">
+            <span class="text-slate-400">出席總人數:</span>
+            <span id="statTotal" class="font-bold text-white text-base">0</span>
+          </div>
+          <div class="bg-slate-900/80 border border-blue-900/40 px-3 py-1.5 rounded-xl flex items-center gap-2 text-blue-400">
+            <span><i class="fa-solid fa-mars"></i> 男:</span>
+            <span id="statMale" class="font-bold text-base">0</span>
+          </div>
+          <div class="bg-slate-900/80 border border-pink-900/40 px-3 py-1.5 rounded-xl flex items-center gap-2 text-pink-400">
+            <span><i class="fa-solid fa-venus"></i> 女:</span>
+            <span id="statFemale" class="font-bold text-base">0</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 讀取狀態提示條 -->
+      <div id="statusAlert" class="mt-4 text-xs px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700/60 flex items-center justify-between text-slate-300">
+        <span id="statusMsg" class="flex items-center gap-2">
+          <i class="fa-solid fa-circle-notch fa-spin text-orange-400"></i> 正在連線至 Google Sheets 讀取名單...
+        </span>
+        <span id="syncTime" class="text-slate-500 font-mono"></span>
+      </div>
+    </div>
+
+    <!-- 核心操作大按鈕 -->
+    <div class="flex flex-col sm:flex-row gap-3">
+      <button id="groupBtn" onclick="runGrouping()" class="flex-1 py-4 px-6 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold text-lg md:text-xl rounded-2xl shadow-xl shadow-orange-500/25 transition duration-200 transform active:scale-[0.99] flex items-center justify-center gap-3">
+        <i class="fa-solid fa-dice text-2xl animate-gentle"></i>
+        <span>依男女比例隨機分成五組</span>
+      </button>
+
+      <button id="copyBtn" onclick="copyResults()" class="sm:w-auto px-6 py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium rounded-2xl transition flex items-center justify-center gap-2 text-sm md:text-base">
+        <i class="fa-regular fa-copy text-lg"></i>
+        <span id="copyBtnText">複製分組名單 (LINE/群組)</span>
+      </button>
+    </div>
+
+    <!-- 五組成員展示區 -->
+    <div id="groupResultSection" class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-users text-orange-400"></i>
+          五組成員名單
+        </h2>
+        <span class="text-xs text-slate-400">點擊上方按鈕隨機洗牌分組</span>
+      </div>
+
+      <!-- 5 個組的卡片容器 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4" id="groupCardsContainer">
+        <!-- 預設五組空卡片由 JavaScript 動態生成 -->
+      </div>
+    </div>
+
+    <!-- 當日出席成員清單 (可折疊/檢查/調整性別) -->
+    <div class="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-4 md:p-5 space-y-4">
+      <div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleRosterCollapse()">
+        <div class="flex items-center gap-2">
+          <h3 class="text-base font-bold text-slate-200 flex items-center gap-2">
+            <i class="fa-solid fa-user-check text-emerald-400"></i>
+            當日出席名冊確認
+          </h3>
+          <span class="text-xs text-slate-400">(共 <span id="rosterCount">0</span> 人)</span>
+        </div>
+        <div class="flex items-center gap-2 text-xs text-slate-400">
+          <span>點擊球員性別標籤可手動切換男女</span>
+          <i id="rosterToggleIcon" class="fa-solid fa-chevron-up transition-transform duration-200"></i>
+        </div>
+      </div>
+
+      <div id="rosterContent" class="space-y-4">
+        <!-- 季打出席名單 -->
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-blue-500"></span> 季打出席 (<span id="seasonCount">0</span> 人)
+          </div>
+          <div id="seasonContainer" class="flex flex-wrap gap-2">
+            <!-- 季打標籤由 JS 渲染 -->
+          </div>
+        </div>
+
+        <!-- 臨打名單 -->
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span> 臨打人員 (<span id="guestCount">0</span> 人)
+          </div>
+          <div id="guestContainer" class="flex flex-wrap gap-2">
+            <!-- 臨打標籤由 JS 渲染 -->
+          </div>
+        </div>
+
+        <!-- 臨時新增球員表單 -->
+        <div class="pt-2 border-t border-slate-700/50 flex flex-wrap items-center gap-2">
+          <input type="text" id="manualName" placeholder="新增臨時球員姓名..." class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-orange-500">
+          <select id="manualGender" class="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-orange-500">
+            <option value="男">男 👦</option>
+            <option value="女">女 👧</option>
+          </select>
+          <button onclick="addManualPlayer()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs text-white rounded-xl transition flex items-center gap-1 font-medium">
+            <i class="fa-solid fa-plus"></i> 新增球員
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 底部 Footer -->
+  <footer class="border-t border-slate-800 bg-slate-950 py-5 text-center text-xs text-slate-500">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div>Danny 排球團 - 芳和實中每週二排球分組系統</div>
+      <div class="flex items-center gap-3">
+        <span>資料來源：Google Sheets 即時同步</span>
+        <span>•</span>
+        <span>男女比例均等隨機分組</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast 提示 -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 border border-slate-600 text-white px-4 py-3 rounded-xl shadow-2xl transition-opacity duration-300 opacity-0 pointer-events-none flex items-center gap-2 z-50 text-sm">
+    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toastMsg">已複製到剪貼簿！</span>
+  </div>
+
+  <script>
+    // 常數與資料結構
+    const SHEET_ID = '1YJeeKy7ZwQiUU4n5UByINY3sK2ZPsaA2dL2nnv6c8FU';
+    const SHEET_URL = `https://docs.google.com/spreadsheets/d/1YJeeKy7ZwQiUU4n5UByINY3sK2ZPsaA2dL2nnv6c8FU/gviz/tq?tqx=out:json`;
+
+    let allDates = []; // [{ colIndex: 7, label: "11/03", year: 2026, month: 11, day: 3, diff: 0 }]
+    let selectedDateCol = null;
+    let rawSheetRows = [];
+    let currentPlayers = []; // 當前選中日期的所有有效球員 [{ name, originalName, gender, isGuessed, type: '季打'|'臨打', enabled: true }]
+    let currentGroups = [[], [], [], [], []];
+
+    // 性別推斷資料庫 (針對中文常見男女名、英文名、及本排球團臨打名冊進行最佳化)
+    const FEMALE_NAMES = new Set([
+      'evelyn', 'monica', 'wendy', 'winnie', 'luna', 'penny', 'alice', 'amy', 'angela', 'anna',
+      'bella', 'cindy', 'debby', 'doris', 'emily', 'emma', 'eva', 'grace', 'helen', 'iris',
+      'ivy', 'jenny', 'jessica', 'joyce', 'judy', 'julia', 'kelly', 'lily', 'linda', 'lisa',
+      'lucy', 'mandy', 'mary', 'may', 'mia', 'peggy', 'rita', 'ruby', 'sandy', 'sarah',
+      'sophia', 'tiffany', 'vicky', 'vivian', 'zoe', '10', '禧', '昕', '安', '柔安', '小藍'
+    ]);
+
+    const FEMALE_CHARS = new Set([
+      '昕', '安', '萱', '婷', '妤', '雅', '彤', '涵', '潔', '芸', '晴', '瑜', '欣', '蓉', '儀', '文',
+      '琪', '靜', '茹', '柔', '嵐', '茜', '蓁', '琳', '珊', '芳', '娟', '惠', '美', '敏', '佳', '瑄',
+      '萍', '真', '翎', '瑤', '伶', '芝', '蓓', '薇', '穎', '婕', '馨', '佩', '依', '玲', '純', '秀',
+      '芬', '燕', '姬', '妍', '娜', '妮', '妹', '娘', '娥', '媛', '嫻', '嬋', '禧'
+    ]);
+
+    const MALE_NAMES = new Set([
+      'jack', 'danny', 'ho', 'scott', 'alex', 'andy', 'ben', 'brian', 'chris', 'david', 'eric',
+      'frank', 'gary', 'hank', 'jason', 'jeff', 'jerry', 'jimmy', 'john', 'ken', 'kevin', 'leo',
+      'mark', 'mike', 'nick', 'paul', 'peter', 'ray', 'sam', 'tim', 'tony', 'victor', 'william',
+      '竣元', '乘加', '塔可', '阿迪', '金聖', '董剛', '史尬', '愛貓', '阿璽', '證諺'
+    ]);
+
+    const MALE_CHARS = new Set([
+      '元', '竣', '加', '乘', '剛', '迪', '聖', '狼', '璽', '諺', '尬', '豪', '宇', '翔', '傑', '廷',
+      '銘', '睿', '宸', '祐', '柏', '威', '峰', '倫', '恩', '宏', '維', '瑋', '凱', '勝', '民', '強',
+      '誠', '輝', '龍', '德', '武', '俊', '志', '健', '博', '斌', '冠', '霖', '碩', '毅', '瀚', '昌',
+      '洋', '澤', '濤', '超', '達', '可'
+    ]);
+
+    // 判斷球員性別的核心算法
+    function detectGender(rawName) {
+      if (!rawName) return { gender: '男', isGuessed: true };
+      const str = rawName.trim();
+
+      // 1. 括號或直接字樣明確寫男女
+      if (/[（(]\s*男\s*[）)]|\[男\]|（男）|\(男\)|_男|男/.test(str)) {
+        return { gender: '男', isGuessed: false };
+      }
+      if (/[（(]\s*女\s*[）)]|\[女\]|（女）|\(女\)|_女|女/.test(str)) {
+        return { gender: '女', isGuessed: false };
+      }
+
+      // 2. 去除前綴干擾，例如 "柔安友_", "狼友_", "Scott友_"
+      let cleanName = str.replace(/^[A-Za-z0-9_\u4e00-\u9fa5]+[友咖]_?/, '')
+                         .replace(/[（(].*?[）)]/g, '')
+                         .trim();
+      const lowerClean = cleanName.toLowerCase();
+
+      // 3. 英文名字或精確字匹配
+      if (FEMALE_NAMES.has(lowerClean)) {
+        return { gender: '女', isGuessed: true };
+      }
+      if (MALE_NAMES.has(lowerClean)) {
+        return { gender: '男', isGuessed: true };
+      }
+
+      // 4. 中文單字啟發式特徵比對
+      let femaleScore = 0;
+      let maleScore = 0;
+      for (const ch of cleanName) {
+        if (FEMALE_CHARS.has(ch)) femaleScore += 2;
+        if (MALE_CHARS.has(ch)) maleScore += 2;
+      }
+
+      if (femaleScore > maleScore) {
+        return { gender: '女', isGuessed: true };
+      } else if (maleScore > femaleScore) {
+        return { gender: '男', isGuessed: true };
+      }
+
+      // 5. 若無特徵，預設為男（可由使用者在 UI 上一鍵切換）
+      return { gender: '男', isGuessed: true };
+    }
+
+    // 透過動態 JSONP 讀取 Google Sheets (徹底免除瀏覽器 CORS 限制)
+    function fetchSheetData() {
+      const icon = document.getElementById('refreshIcon');
+      icon.classList.add('fa-spin');
+      updateStatus('正在連線至 Google Sheets 讀取最新名冊...', 'loading');
+
+      // 建立動態 callback
+      const callbackName = 'gvizCallback_' + Date.now();
+      window[callbackName] = function(json) {
+        cleanup();
+        parseSheetResponse(json);
+      };
+
+      const script = document.createElement('script');
+      script.id = 'gvizScriptTag';
+      script.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler:${callbackName}`;
+      script.onerror = function() {
+        cleanup();
+        console.warn('JSONP 載入異常，啟動備份解析機制...');
+        loadFallbackData();
+      };
+
+      function cleanup() {
+        icon.classList.remove('fa-spin');
+        delete window[callbackName];
+        const s = document.getElementById('gvizScriptTag');
+        if (s && s.parentNode) s.parentNode.removeChild(s);
+      }
+
+      document.body.appendChild(script);
+    }
+
+    // 解析 Google Sheet 回傳的表格 JSON
+    function parseSheetResponse(json) {
+      try {
+        if (!json || !json.table || !json.table.rows) {
+          throw new Error('回傳資料格式不符');
+        }
+
+        rawSheetRows = json.table.rows;
+        findDateColumns();
+        populateDateDropdown();
+        loadSelectedDatePlayers();
+        
+        // 自動執行一次分組
+        runGrouping();
+
+        updateStatus('資料同步成功！已取得最新排球名冊', 'success');
+        document.getElementById('syncTime').textContent = new Date().toLocaleTimeString('zh-TW');
+      } catch (err) {
+        console.error('解析 Sheet 失敗:', err);
+        updateStatus('解析失敗，已切換至備份名冊', 'error');
+        loadFallbackData();
+      }
+    }
+
+    // 尋找日期欄位並計算與今日最接近的日期
+    function findDateColumns() {
+      allDates = [];
+      const headerRow = rawSheetRows[0].c;
+      const today = new Date();
+      const currentYear = today.getFullYear();
+
+      for (let c = 3; c < headerRow.length; c++) {
+        const cell = headerRow[c];
+        if (!cell) continue;
+        const text = (cell.f || cell.v || '').toString().trim();
+        if (text.includes('/')) {
+          const parts = text.split('/');
+          const month = parseInt(parts[0], 10);
+          const day = parseInt(parts[1], 10);
+          
+          // 計算絕對差距毫秒
+          const targetDate = new Date(currentYear, month - 1, day);
+          const diff = Math.abs(targetDate.getTime() - today.getTime());
+
+          allDates.push({
+            colIndex: c,
+            label: text,
+            year: currentYear,
+            month: month,
+            day: day,
+            diff: diff
+          });
+        }
+      }
+
+      // 依差距排序，找出最接近的
+      let nearestIndex = 0;
+      let minDiff = Infinity;
+      allDates.forEach((d, idx) => {
+        if (d.diff < minDiff) {
+          minDiff = d.diff;
+          nearestIndex = idx;
+        }
+      });
+
+      // 標註最接近
+      allDates.forEach((d, idx) => {
+        d.isNearest = (idx === nearestIndex);
+      });
+
+      // 預設選中最近的一天
+      selectedDateCol = allDates[nearestIndex].colIndex;
+    }
+
+    // 填入日期下拉選單
+    function populateDateDropdown() {
+      const select = document.getElementById('dateSelect');
+      select.innerHTML = '';
+
+      allDates.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.colIndex;
+        opt.textContent = `${d.label} (週二) ${d.isNearest ? ' ★ 最接近' : ''}`;
+        if (d.colIndex === selectedDateCol) {
+          opt.selected = true;
+        }
+        select.appendChild(opt);
+      });
+
+      checkNearestBadge();
+    }
+
+    function checkNearestBadge() {
+      const current = allDates.find(d => d.colIndex === selectedDateCol);
+      const badge = document.getElementById('nearestBadge');
+      if (current && current.isNearest) {
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    function onDateChange() {
+      const select = document.getElementById('dateSelect');
+      selectedDateCol = parseInt(select.value, 10);
+      checkNearestBadge();
+      loadSelectedDatePlayers();
+      runGrouping();
+    }
+
+    // 載入選定日期的出席球員名單
+    function loadSelectedDatePlayers() {
+      currentPlayers = [];
+      const col = selectedDateCol;
+
+      // 1. 季打名冊 (Row 1 ~ 15)
+      for (let r = 1; r <= 15; r++) {
+        if (r >= rawSheetRows.length) break;
+        const row = rawSheetRows[r].c;
+        if (!row || !row[2]) continue;
+        const nameVal = (row[2].f || row[2].v || '').toString().trim();
+        if (!nameVal) continue;
+
+        // 檢查該日期是否有請假
+        const dateCell = (col < row.length && row[col]) ? (row[col].f || row[col].v || '').toString().trim() : '';
+        const isAbsent = dateCell.includes('請假');
+
+        if (!isAbsent) {
+          const detected = detectGender(nameVal);
+          currentPlayers.push({
+            id: 'season_' + r,
+            name: nameVal,
+            cleanName: nameVal.replace(/[（(].*?[）)]/g, '').trim(),
+            gender: detected.gender,
+            isGuessed: detected.isGuessed,
+            type: '季打',
+            enabled: true
+          });
+        }
+      }
+
+      // 2. 臨打名冊 (從 Row 18 開始，通常偶數行是名字)
+      for (let r = 18; r < rawSheetRows.length; r += 2) {
+        const row = rawSheetRows[r].c;
+        if (!row) continue;
+        const dateCell = (col < row.length && row[col]) ? (row[col].f || row[col].v || '').toString().trim() : '';
+        
+        // 若有填寫名字且非請假註記
+        if (dateCell && !dateCell.includes('請假') && dateCell !== '-') {
+          const detected = detectGender(dateCell);
+          currentPlayers.push({
+            id: 'guest_' + r,
+            name: dateCell,
+            cleanName: dateCell.replace(/^[A-Za-z0-9_\u4e00-\u9fa5]+[友咖]_?/, '').replace(/[（(].*?[）)]/g, '').trim(),
+            gender: detected.gender,
+            isGuessed: detected.isGuessed,
+            type: '臨打',
+            enabled: true
+          });
+        }
+      }
+
+      renderRoster();
+      updateStats();
+    }
+
+    // 渲染出席名單標籤與性別切換
+    function renderRoster() {
+      const seasonContainer = document.getElementById('seasonContainer');
+      const guestContainer = document.getElementById('guestContainer');
+      seasonContainer.innerHTML = '';
+      guestContainer.innerHTML = '';
+
+      let seasonCount = 0;
+      let guestCount = 0;
+
+      currentPlayers.forEach(p => {
+        const tag = document.createElement('div');
+        tag.className = `flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs transition duration-150 ${
+          p.enabled 
+            ? 'bg-slate-900/90 border-slate-700 text-slate-200' 
+            : 'bg-slate-900/30 border-slate-800 text-slate-500 opacity-60 line-through'
+        }`;
+
+        // 出席勾選
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = p.enabled;
+        checkbox.className = 'rounded bg-slate-800 border-slate-700 text-orange-500 focus:ring-0 cursor-pointer';
+        checkbox.onchange = (e) => {
+          p.enabled = e.target.checked;
+          renderRoster();
+          updateStats();
+        };
+
+        // 姓名
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'font-medium';
+        nameSpan.textContent = p.name;
+
+        // 可點擊切換男女的徽章
+        const genderBtn = document.createElement('button');
+        genderBtn.type = 'button';
+        genderBtn.className = `px-1.5 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-0.5 ${
+          p.gender === '男' 
+            ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/30' 
+            : 'bg-pink-500/20 text-pink-300 hover:bg-pink-500/30 border border-pink-500/30'
+        }`;
+        genderBtn.innerHTML = p.gender === '男' ? '<i class="fa-solid fa-mars"></i> 男' : '<i class="fa-solid fa-venus"></i> 女';
+        genderBtn.title = '點擊切換男女' + (p.isGuessed ? ' (智慧推斷)' : '');
+        genderBtn.onclick = (e) => {
+          e.stopPropagation();
+          p.gender = p.gender === '男' ? '女' : '男';
+          p.isGuessed = false;
+          renderRoster();
+          updateStats();
+        };
+
+        tag.appendChild(checkbox);
+        tag.appendChild(nameSpan);
+        tag.appendChild(genderBtn);
+
+        if (p.isGuessed) {
+          const guessBadge = document.createElement('span');
+          guessBadge.className = 'text-[9px] text-amber-400 bg-amber-500/10 px-1 rounded border border-amber-500/20';
+          guessBadge.textContent = '推斷';
+          guessBadge.title = '依名字自動推斷，點擊性別可手動切換';
+          tag.appendChild(guessBadge);
+        }
+
+        if (p.type === '季打') {
+          seasonContainer.appendChild(tag);
+          if (p.enabled) seasonCount++;
+        } else {
+          guestContainer.appendChild(tag);
+          if (p.enabled) guestCount++;
+        }
+      });
+
+      document.getElementById('seasonCount').textContent = seasonCount;
+      document.getElementById('guestCount').textContent = guestCount;
+      document.getElementById('rosterCount').textContent = seasonCount + guestCount;
+    }
+
+    // 更新統計資訊
+    function updateStats() {
+      const active = currentPlayers.filter(p => p.enabled);
+      const males = active.filter(p => p.gender === '男');
+      const females = active.filter(p => p.gender === '女');
+
+      document.getElementById('statTotal').textContent = active.length;
+      document.getElementById('statMale').textContent = males.length;
+      document.getElementById('statFemale').textContent = females.length;
+    }
+
+    // Fisher-Yates 隨機洗牌
+    function shuffleArray(arr) {
+      const result = [...arr];
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+      return result;
+    }
+
+    // 核心演算法：依據相同男女比例隨機分成五組
+    function runGrouping() {
+      const active = currentPlayers.filter(p => p.enabled);
+      if (active.length === 0) {
+        alert('目前無出席人員，請先選擇有效場次或勾選出席人員！');
+        return;
+      }
+
+      const males = shuffleArray(active.filter(p => p.gender === '男'));
+      const females = shuffleArray(active.filter(p => p.gender === '女'));
+
+      // 初始化五組
+      const groups = [[], [], [], [], []];
+
+      // 1. 男生均勻隨機分配到 5 組
+      males.forEach((m, idx) => {
+        groups[idx % 5].push(m);
+      });
+
+      // 2. 女生均勻分配：優先分配給目前總人數最少、且女生人數最少的組別
+      females.forEach(f => {
+        // 尋找最適合補入的組別
+        let bestGroup = groups[0];
+        for (let i = 1; i < groups.length; i++) {
+          const g = groups[i];
+          const bestFemaleCount = bestGroup.filter(x => x.gender === '女').length;
+          const currentFemaleCount = g.filter(x => x.gender === '女').length;
+
+          if (g.length < bestGroup.length) {
+            bestGroup = g;
+          } else if (g.length === bestGroup.length && currentFemaleCount < bestFemaleCount) {
+            bestGroup = g;
+          }
+        }
+        bestGroup.push(f);
+      });
+
+      // 3. 各組內部隨機排序，並重新編序組別以保證整體純隨機
+      currentGroups = groups.map(g => shuffleArray(g));
+
+      renderGroupCards();
+      showToast('🎉 五組男女均衡分組完成！');
+    }
+
+    // 渲染五組卡片
+    function renderGroupCards() {
+      const container = document.getElementById('groupCardsContainer');
+      container.innerHTML = '';
+
+      const teamColors = [
+        { name: '第 1 組', border: 'border-red-500/40', badge: 'team-badge-1', icon: 'fa-fire' },
+        { name: '第 2 組', border: 'border-blue-500/40', badge: 'team-badge-2', icon: 'fa-bolt' },
+        { name: '第 3 組', border: 'border-emerald-500/40', badge: 'team-badge-3', icon: 'fa-leaf' },
+        { name: '第 4 組', border: 'border-amber-500/40', badge: 'team-badge-4', icon: 'fa-crown' },
+        { name: '第 5 組', border: 'border-purple-500/40', badge: 'team-badge-5', icon: 'fa-star' }
+      ];
+
+      currentGroups.forEach((group, idx) => {
+        const theme = teamColors[idx];
+        const maleCount = group.filter(p => p.gender === '男').length;
+        const femaleCount = group.filter(p => p.gender === '女').length;
+
+        const card = document.createElement('div');
+        card.className = `bg-slate-800/90 border ${theme.border} rounded-2xl p-4 shadow-xl flex flex-col justify-between transition duration-200 hover:border-slate-500`;
+
+        // 卡片頂部
+        const header = document.createElement('div');
+        header.className = 'border-b border-slate-700/60 pb-3 mb-3 flex items-center justify-between';
+        header.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-lg ${theme.badge} flex items-center justify-center text-xs font-bold shadow">
+              ${idx + 1}
+            </span>
+            <span class="font-bold text-white text-base">${theme.name}</span>
+          </div>
+          <div class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-slate-300">
+            ${group.length} 人 (${maleCount}男 ${femaleCount}女)
+          </div>
+        `;
+        card.appendChild(header);
+
+        // 成員名單列表
+        const list = document.createElement('div');
+        list.className = 'space-y-2 flex-1';
+
+        group.forEach(player => {
+          const item = document.createElement('div');
+          item.className = 'flex items-center justify-between bg-slate-900/80 px-3 py-2 rounded-xl border border-slate-700/50';
+
+          const left = document.createElement('div');
+          left.className = 'flex items-center gap-2';
+
+          const genderIcon = document.createElement('span');
+          genderIcon.className = `text-xs ${player.gender === '男' ? 'text-blue-400' : 'text-pink-400'}`;
+          genderIcon.innerHTML = player.gender === '男' ? '<i class="fa-solid fa-mars"></i>' : '<i class="fa-solid fa-venus"></i>';
+
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'text-sm font-semibold text-slate-100';
+          nameSpan.textContent = player.name;
+
+          left.appendChild(genderIcon);
+          left.appendChild(nameSpan);
+
+          const typeBadge = document.createElement('span');
+          typeBadge.className = `text-[10px] px-1.5 py-0.5 rounded font-medium ${
+            player.type === '季打' 
+              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
+              : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+          }`;
+          typeBadge.textContent = player.type;
+
+          item.appendChild(left);
+          item.appendChild(typeBadge);
+          list.appendChild(item);
+        });
+
+        card.appendChild(list);
+        container.appendChild(card);
+      });
+    }
+
+    // 複製分組結果文字 (適合貼至 LINE / Telegram / 群組)
+    function copyResults() {
+      const selected = allDates.find(d => d.colIndex === selectedDateCol);
+      const dateLabel = selected ? selected.label : '';
+      
+      let text = `🏐 Danny 排球團 - ${dateLabel} 隨機分組名冊 🏐\n`;
+      text += `芳和實中 17:45-20:45 (男女比例均衡五組)\n`;
+      text += `=========================\n\n`;
+
+      currentGroups.forEach((group, idx) => {
+        const maleCount = group.filter(p => p.gender === '男').length;
+        const femaleCount = group.filter(p => p.gender === '女').length;
+        text += `【第 ${idx + 1} 組】(${maleCount}男 ${femaleCount}女，共 ${group.length} 人)\n`;
+        group.forEach(p => {
+          text += `  • ${p.name} (${p.gender}) [${p.type}]\n`;
+        });
+        text += `\n`;
+      });
+
+      text += `=========================\n分組完成，祝大家打球愉快！🔥`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('📋 已複製 LINE 群組格式名冊！');
+      }).catch(() => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showToast('📋 已複製 LINE 群組格式名冊！');
+      });
+    }
+
+    // 手動新增臨時球員
+    function addManualPlayer() {
+      const nameInput = document.getElementById('manualName');
+      const genderSelect = document.getElementById('manualGender');
+      const name = nameInput.value.trim();
+      if (!name) return;
+
+      currentPlayers.push({
+        id: 'manual_' + Date.now(),
+        name: name,
+        cleanName: name,
+        gender: genderSelect.value,
+        isGuessed: false,
+        type: '臨打',
+        enabled: true
+      });
+
+      nameInput.value = '';
+      renderRoster();
+      updateStats();
+      runGrouping();
+      showToast(`已新增球員：${name}`);
+    }
+
+    function toggleRosterCollapse() {
+      const content = document.getElementById('rosterContent');
+      const icon = document.getElementById('rosterToggleIcon');
+      content.classList.toggle('hidden');
+      icon.classList.toggle('rotate-180');
+    }
+
+    function updateStatus(msg, type) {
+      const alert = document.getElementById('statusAlert');
+      const text = document.getElementById('statusMsg');
+      text.innerHTML = msg;
+
+      if (type === 'loading') {
+        text.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-orange-400"></i> ${msg}`;
+      } else if (type === 'success') {
+        text.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400"></i> ${msg}`;
+      } else if (type === 'error') {
+        text.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-400"></i> ${msg}`;
+      }
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      toastMsg.textContent = msg;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none');
+      }, 2500);
+    }
+
+    // 備份名冊資料 (若離線或 Google Sheets 暫時無法連線時保證頁面正常運作)
+    function loadFallbackData() {
+      const fallbackRows = [
+        { c: [null, {v: "人員"}, null, {v: "10/06"}, {v: "10/13"}, {v: "10/20"}, {v: "10/27"}, {v: "11/03"}, {v: "11/10"}, {v: "11/17"}, {v: "11/24"}, {v: "12/01"}, {v: "12/08"}, {v: "12/15"}, {v: "12/22"}, {v: "12/29"}] },
+        { c: [{v: 1}, {v: "季打"}, {v: "排🐺 (男)"}, null, null, null, null, null, null, null, null, null, null, null, null, null] },
+        { c: [{v: 2}, null, {v: "Jack (男)"}, null, null, null, null, null, null, null, null, null, null, null, null, null] },
+        { c: [{v: 3}, null, {v: "艾文 (男)"}, null, null, null, null, null, null, null, {v: "請假"}, null, null, null, null, null] },
+        { c: [{v: 4}, null, {v: "愛貓(男)"}, null, null, {v: "請假"}, null, null, null, null, null, null, null, null, null, null] },
+        { c: [{v: 5}, null, {v: "阿璽(男)"}, null, {v: "請假"}, {v: "請假"}, null, {v: "請假"}, null, null, null, null, null, null, null, null] },
+        { c: [{v: 6}, null, {v: "證諺 (男)"}, null, {v: "請假"}, null, null, {v: "請假"}, null, null, null, null, null, null, null, null] },
+        { c: [{v: 7}, null, {v: "Danny (男)"}, {v: "請假"}, null, {v: "請假"}, null, null, null, null, null, null, null, null, null, null] },
+        { c: [{v: 8}, null, {v: "董剛 (男)"}, null, null, {v: "請假"}, null, null, {v: "請假"}, null, null, {v: "請假"}, {v: "請假"}, {v: "請假"}, null, null] },
+        { c: [{v: 9}, null, {v: "史尬 (男)"}, {v: "請假"}, null, null, null, {v: "請假"}, {v: "請假"}, null, null, null, null, null, null, null] },
+        { c: [{v: 10}, null, {v: "Wendy(女)"}, null, null, null, null, null, null, null, {v: "請假"}, null, null, null, null, null] },
+        { c: [{v: 11}, null, {v: "Winnie (女)"}, null, null, null, null, null, null, null, null, null, null, null, null, null] },
+        { c: [{v: 12}, null, {v: "柔安 (女)"}, null, null, null, null, null, null, null, null, null, null, null, null, null] },
+        { c: [{v: 13}, null, {v: "小藍 (女)"}, null, null, null, null, {v: "請假"}, {v: "請假"}, null, null, null, null, null, null, null] },
+        { c: [{v: 14}, null, {v: "Penny (女)"}, null, null, null, {v: "請假"}, null, null, null, null, null, null, null, null, null] },
+        { c: [{v: 15}, null, {v: "Luna (女)"}, null, null, {v: "請假"}, null, null, null, null, null, null, null, null, null, null] },
+        { c: [] },
+        { c: [] },
+        { c: [{v: 1}, {v: "臨打"}, {v: "臨打名字"}, {v: "柔安友_金聖（男）"}, {v: "狼友_Evelyn(女）"}, {v: "安"}, {v: "安"}, {v: "狼友_Evelyn(女）"}, {v: "狼友_禧(女)"}, null, null, {v: "安"}, {v: "安"}, {v: "安"}, null, null] },
+        { c: [null, null, {v: "請假者"}] },
+        { c: [{v: 2}, null, {v: "臨打名字"}, null, {v: "竣元"}, {v: "Scott友_10 (女)"}, null, {v: "柔安友_Ho（男）"}, null, null, null, null, null, null, null, null] },
+        { c: [null, null, {v: "請假者"}] },
+        { c: [{v: 3}, null, {v: "臨打名字"}, {v: "Scott友_阿迪（男）"}, null, {v: "乘加"}, null, {v: "昕"}, {v: "安"}, null, null, null, null, null, null, null] },
+        { c: [null, null, {v: "請假者"}] },
+        { c: [{v: 4}, null, {v: "臨打名字"}, null, null, {v: "Scott友_Monica (女)"}, null, {v: "塔可"}, null, null, null, null, null, null, null, null] }
+      ];
+
+      rawSheetRows = fallbackRows;
+      findDateColumns();
+      populateDateDropdown();
+      loadSelectedDatePlayers();
+      runGrouping();
+      updateStatus('已載入快取離線名單', 'success');
+    }
+
+    // 頁面初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchSheetData();
+    });
+  </script>
+</body>
+</html>
